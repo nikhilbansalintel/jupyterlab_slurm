@@ -11,6 +11,7 @@ import { Widget } from '@lumino/widgets';
 
 const TOP_AREA_CSS_CLASS = 'jp-TopAreaText';
 const START_TIME_KEY = 'startTime';
+const FOUR_HOURS_IN_SECONDS = 14400;
 
 /**
  * Initialization data for the jupyterlab_slurm_counter extension.
@@ -40,13 +41,18 @@ const plugin: JupyterFrontEndPlugin<void> = {
     let intervalId: number | null = null;
 
     const updateCounter = async () => {
-      const startTime = await state.fetch(START_TIME_KEY);
+      let startTime = await state.fetch(START_TIME_KEY);
       if (startTime !== undefined) {
         const currentTime = new Date().getTime();
         const elapsedTimeInSeconds = Math.floor((currentTime - Number(startTime)) / 1000);
-        const hrs = Math.floor(elapsedTimeInSeconds / 3600).toString().padStart(2, '0');
-        const mins = Math.floor((elapsedTimeInSeconds % 3600) / 60).toString().padStart(2, '0');
-        const secs = (elapsedTimeInSeconds % 60).toString().padStart(2, '0');
+        if (elapsedTimeInSeconds >= FOUR_HOURS_IN_SECONDS) {
+          startTime = currentTime;
+          await state.save(START_TIME_KEY, startTime);
+        }
+        const displayTime = elapsedTimeInSeconds % FOUR_HOURS_IN_SECONDS;
+        const hrs = Math.floor(displayTime / 3600).toString().padStart(2, '0');
+        const mins = Math.floor((displayTime % 3600) / 60).toString().padStart(2, '0');
+        const secs = (displayTime % 60).toString().padStart(2, '0');
         counterDisplay.textContent = `${hrs}:${mins}:${secs}`;
       }
     };
@@ -75,9 +81,8 @@ const plugin: JupyterFrontEndPlugin<void> = {
       startCounter();
     });
 
-    // Stop the counter when the application's shell widget is disposed
-    widget.disposed.connect(() => {
-      console.log('widget disposed!!');
+    app.started.then(() => {
+      // Stop the counter when the application is shut down
       stopCounter();
     });
   }
